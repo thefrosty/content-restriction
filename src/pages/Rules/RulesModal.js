@@ -231,7 +231,8 @@ const RulesModal = () => {
                                                         }
                                                     >
                                                     {item.upcoming && <span className="upcoming-badge">{__('Upcoming', 'content-restriction')}</span>}
-                                                    {item.is_pro && (
+                                                    {item.is_pro && content_restriction_admin.pro_available && (
+                                                      
                                                         <span className="pro-badge">
                                                             <svg
                                                                 width="20"

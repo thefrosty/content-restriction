@@ -50,10 +50,9 @@ class Frontend extends FrontendBase {
 					unset( $module['conditions'] );
 
 				} elseif ( 'blur' === $module['key'] ) {
-					error_log( 'blur : ' . print_r( $module, true ) );
 					unset( $module['options']['apply_to'] );
 				} elseif ( 'randomize' === $module['key'] ) {
-					error_log( 'randomize : ' . print_r( $module, true ) );
+					unset( $module['options']['apply_to'] );
 				} elseif ( 'login_back' === $module['key'] ) {
 					error_log( 'login_back : ' . print_r( $module, true ) );
 				} elseif ( 'redirection' === $module['key'] ) {

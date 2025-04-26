@@ -22,6 +22,11 @@ class ServiceProvider extends \ContentRestriction\Common\ProviderBase {
 		 * Overriding the restrict view modules for shortcode.
 		 */
 		add_filter( 'content_restriction_replace_before', [$this, 'before_replace'], 10, 2 );
+
+		/**
+		 * Hide Restrict View modules for shortcode.
+		 */
+		add_filter( 'content_restriction_restrict_view_module_list', [$this, 'hide_restrict_view_modules'], 10, 2 );
 	}
 
 	public function before_replace( bool $bool, $obj ): bool {
@@ -75,5 +80,16 @@ class ServiceProvider extends \ContentRestriction\Common\ProviderBase {
 		echo $restrict_view_obj->modify_content( $content, 'shortcode_content' );
 
 		return ob_get_clean();
+	}
+
+	public function hide_restrict_view_modules( array $modules, \WP_REST_Request $request ) {
+
+		if ( 'shortcode' === $request->get_param( 'what_content' ) ) {
+			$modules = array_filter( $modules, function ( $module ) {
+				return in_array( $module['key'], ['blur', 'hide', 'replace', 'randomize'] );
+			} );
+		}
+
+		return $modules;
 	}
 }

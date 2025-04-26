@@ -21,7 +21,7 @@ class ModuleController {
 	}
 
 	public function restrict_view( \WP_REST_Request $request ): array {
-		$modules = apply_filters( 'content_restriction_restrict_view_module_list', [] );
+		$modules = apply_filters( 'content_restriction_restrict_view_module_list', [], $request );
 
 		return $this->filter( $request, $modules );
 	}

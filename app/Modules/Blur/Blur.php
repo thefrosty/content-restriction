@@ -7,6 +7,8 @@
 
 namespace ContentRestriction\Modules\Blur;
 
+use ContentRestriction\Utils\Random;
+
 class Blur extends \ContentRestriction\Common\RestrictViewBase {
 
 	public function __construct( $who_can_see, $what_content, array $rule ) {
@@ -15,60 +17,99 @@ class Blur extends \ContentRestriction\Common\RestrictViewBase {
 		$this->rule         = $rule;
 		$this->who_can_see  = $who_can_see;
 		$this->what_content = $what_content;
-		$this->options      = $this->rule['rule'][$this->type][$this->module] ?? [];
-		$this->protection   = new Protection( $what_content, $this->options, $this->rule );
+		$this->options      = $rule['rule'][$this->type][$this->module] ?? [];
 	}
 
+	/**
+	 * Initializes blur protection on restricted content if access is denied.
+	 */
 	public function boot(): void {
-		$if = ( new $this->who_can_see( $this->rule ) );
-		if ( $if->has_access() ) {
+		/**
+		 * Allow developers to intervene before applying content blur,
+		 * using the 'content_restriction_blur_before' filter. If any
+		 * callback returns false, stop further processing.
+		 *
+		 * @param bool  $continue Whether to proceed with content blur.
+		 * @param self  $this     Current instance of the restriction handler.
+		 */
+		if ( ! apply_filters( 'content_restriction_blur_before', true, $this ) ) {
 			return;
 		}
 
-		add_filter( 'content_restriction_the_title', [$this, 'the_title'], 10 );
-		add_filter( 'content_restriction_the_excerpt', [$this, 'the_excerpt'], 1 );
-		add_filter( 'content_restriction_the_content', [$this, 'the_content'] );
-	}
-
-	public function the_title( $title ) {
-		\ContentRestriction\Utils\Analytics::add( [
-			'user_id' => get_current_user_id(),
-			'post_id' => get_the_ID(),
-			'context' => 'locked',
-			'id'      => $this->rule['id'],
-		] );
-
-		$this->protection->set_post_id( get_the_ID() );
-
-		if ( $this->apply_to( 'title' ) ) {
-			$title = $this->protection->add( $title );
+		$who_can_see = new $this->who_can_see( $this->rule );
+		if ( $who_can_see->has_access() ) {
+			return;
 		}
 
-		return $title;
+		// Hook into all three filters
+		add_filter( 'content_restriction_the_title', [$this, 'modify_content'], 10 );
+		add_filter( 'content_restriction_the_excerpt', [$this, 'modify_content'], 1 );
+		add_filter( 'content_restriction_the_content', [$this, 'modify_content'] );
 	}
 
-	public function the_excerpt( $excerpt ) {
-		if ( $this->apply_to( 'excerpt' ) ) {
-			$excerpt = $this->protection->add( $excerpt );
+	/**
+	 * Applies blur protection to title, excerpt, or content based on settings.
+	 */
+	public function modify_content( $content, $type = '' ): string {
+		switch ( current_filter() ) {
+			case 'content_restriction_the_title':
+				$type = 'title';
+				break;
+			case 'content_restriction_the_excerpt':
+				$type = 'excerpt';
+				break;
+			case 'content_restriction_the_content':
+				$type = 'content';
+				break;
 		}
 
-		return $excerpt;
-	}
-
-	public function the_content( $content ) {
-		if ( $this->apply_to( 'content' ) ) {
-			$content = $this->protection->add( $content );
+		if ( ! $type || ! $this->should_apply( $type ) ) {
+			return $content;
 		}
 
-		return $content;
+		$this->post_id = get_the_ID();
+
+		return $this->add_protection( $content );
 	}
 
-	private function apply_to( string $t ): bool {
-		$arr = $this->options['apply_to'] ?? [];
-		if ( in_array( $t, $arr ) ) {
+	public function add_protection( $content ) {
+		if ( ! $this->is_allowed() ) {
+			return $content;
+		}
+
+		$html_tag      = 'div';
+		$add_rand_text = apply_filters( 'content_restriction_blur_protection_rand_text', true );
+		if ( $add_rand_text ) {
+			$content = Random::randomize( $content );
+		}
+
+		$blur_level = $this->options['level'] ?? 10;
+		$spread     = $this->options['spread'] ?? 10;
+
+		return sprintf(
+			'<%s class="aiocr-blur" style="-webkit-filter: blur(%spx); text-shadow: 0 0 %spx #000;">%s</%s>',
+			$html_tag,
+			esc_attr( $blur_level ),
+			esc_attr( $spread ),
+			$content,
+			$html_tag
+		);
+	}
+
+	private function is_allowed(): bool {
+		$what_content = new $this->what_content( $this->rule );
+		$what_content->set_post_id( $this->post_id );
+		if ( $what_content->protect() ) {
 			return true;
 		}
 
 		return false;
+	}
+
+	/**
+	 * Determines whether blur should be applied to a given content type.
+	 */
+	private function should_apply( string $type ): bool {
+		return in_array( $type, $this->options['apply_to'] ?? [], true );
 	}
 }

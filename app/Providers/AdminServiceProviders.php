@@ -42,7 +42,7 @@ class AdminServiceProviders extends \ContentRestriction\Common\ProviderBase {
 			CONTENT_RESTRICTION_FILE
 		);
 
-		$this->insights = $client->insights();
+		$client->insights();
 
 		// Active insights
 		$client->set_textdomain( 'content-restriction' );
